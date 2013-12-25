@@ -54,9 +54,14 @@ sub update {
     }
 
     $self->{'_select'}->can_read( defined($wait) ? $wait : 1 ) || return;
-    if(read($self->{'_fh'}, $str, 8) != 8) {
-        CORE::close $self->{'_fh'};
-        return 1;
+    my $ret = read($self->{'_fh'}, $str, 8);
+    if($ret != 8) {
+        if (!defined $ref) {
+            CORE::close $self->{'_fh'};
+            warn "Could not read from device: $!";
+            return undef;
+        }
+        return 0;
     }
 
     my @s = unpack("C*", $str);
@@ -70,10 +75,10 @@ sub update {
 
     # Handle move
     if ($s[0] == 2 && $s[1] == 0) {
-        my $value = unpack("s",chr($s[4]).chr($s[5]));
+        my $value = unpack("s", chr($s[4]) . chr($s[5]) );
         if ($self->{'events'}->[$s[2]]) {
             $self->{$self->{'events'}->[$s[2]]} = $value;
-        } 
+        }
     }
 
     return 1;
@@ -94,7 +99,7 @@ sub AUTOLOAD {
     }
 
     return $self->{$name};
-}   
+}
 
 1;
 
@@ -133,11 +138,9 @@ has 6 axes; x, y, z, pitch, roll and yaw. In addition, it has two buttons.
 
 Creates a new object for reading events from the device. Takes no arguments. Returns a new object.
 
-=head2 $nav-E<gt>open( [ $device ] )
+=head2 $nav-E<gt>open( $device )
 
-Opens a new socket to the device. 
-
-C<$device> The path to the device. Default: /dev/input/by-id/usb-3Dconnexion_SpaceNavigator-event-if00
+Opens a new socket to the device C<$device>.
 
 =head2 $nav-E<gt>close()
 
@@ -148,6 +151,8 @@ Closes the socket.
 Reads and parse event from device. C<$nav-E<gt>update()> will call open if the socket for some reason is closed.
 
 C<$timeout> Number of secounds C<$nav-E<gt>update()> should wait for a event from the device before returning.
+
+C<$nav-E<gt>update()> will return 1 on success, 0 on timeout and undef on error.
 
 
 =head2 $nav-E<gt>x()
